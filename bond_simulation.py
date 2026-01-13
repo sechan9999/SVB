@@ -1,45 +1,48 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
+import os
+import sys
 
 def calculate_bond_metrics(cash_flows, yield_rate):
     """
-    채권의 현재가치(PV)와 듀레이션(Duration)을 계산합니다.
+    Calculates the Present Value (PV) and Duration of a bond.
     
-    formula: 
+    Formula: 
     P = sum(C_i / (1+y)^i)
-    Duration = (1/P) * sum(i * C_i / (1+y)^(i+1))  <- Modified Duration에 가까운 수식
-    여기선 텍스트에 언급된 '현금흐름 타이밍의 가중 평균' 개념을 시각화합니다.
+    Duration = (1/P) * sum(i * C_i / (1+y)^(i+1))  <- Close to Modified Duration
+    This visualizes the concept of 'weighted average of cash flow timing' mentioned in the text.
     """
     times = np.arange(1, len(cash_flows) + 1)
     
-    # 1. 각 시점별 현금흐름의 현재가치(PV) 계산
+    # 1. Calculate PV of cash flows for each period
     pvs = [c / (1 + yield_rate)**t for t, c in zip(times, cash_flows)]
     total_p = sum(pvs)
     
-    # 2. 가중치(Weights) 계산: w_i = PV_i / Total_P
+    # 2. Calculate Weights: w_i = PV_i / Total_P
     weights = [pv / total_p for pv in pvs]
     
-    # 3. 듀레이션 계산 (무게 중심)
-    # 텍스트의 수식에 따라 (1/(1+y)) * sum(w_i * i) 계산
+    # 3. Calculate Duration (Center of Mass)
+    # Calculation according to the formula: (1/(1+y)) * sum(w_i * i)
     duration = (1 / (1 + yield_rate)) * sum(w * t for w, t in zip(weights, times))
     
     return total_p, pvs, duration
 
 def plot_bond_plank(name, cash_flows, yield_rate, ax):
     """
-    채권의 현금흐름을 널빤지 위의 무게추로 시각화합니다.
+    Visualizes the bond's cash flows as weights on a plank.
     """
     price, pvs, duration = calculate_bond_metrics(cash_flows, yield_rate)
     times = np.arange(1, len(cash_flows) + 1)
     
-    # 널빤지 그리기
+    # Draw the plank
     ax.axhline(0, color='black', linewidth=2)
     
-    # 무게추(PV) 그리기
+    # Draw weights (PV)
     ax.bar(times, pvs, width=0.4, color='skyblue', alpha=0.7, label='PV of Cashflows')
     
-    # 무게 중심(Duration) 표시
+    # Mark Center of Mass (Duration)
     ax.plot(duration, 0, '^', color='red', markersize=15, label=f'Duration: {duration:.2f} yrs')
     ax.annotate('Center of Mass\n(Duration)', xy=(duration, 0), xytext=(duration, max(pvs)*0.5),
                 arrowprops=dict(facecolor='black', shrink=0.05),
@@ -51,30 +54,24 @@ def plot_bond_plank(name, cash_flows, yield_rate, ax):
     ax.grid(True, axis='y', linestyle='--', alpha=0.6)
     ax.legend()
 
-def run_simulation():
-    # 시뮬레이션 설정
-    T = 20  # 20년 만기
-    yield_rate = 0.05  # 5% 금리
-    face_value = 1000000  # 원금 100만 달러
-    coupon_rate = 0.04  # 쿠폰 4%
-    
-    # 1. 일반 국채 (Treasury Bond): 매년 이자만 주다가 마지막에 원금 상환
+def run_simulation(T, yield_rate, face_value, coupon_rate, output_dir):
+    # 1. Treasury Bond (Bullet Repayment): Interest only every year, principal at the end
     treasury_cfs = [face_value * coupon_rate] * T
     treasury_cfs[-1] += face_value
     
-    # 2. 모기지 채권 (Mortgage Bond): 원리금 균등 상환 (매년 동일한 금액 지불)
-    # 원리금 균등 상환액 계산 공식: A = P * r * (1+r)^n / ((1+r)^n - 1)
-    r = 0.04 # 대출 이자율
+    # 2. Mortgage Bond (Amortized): Equal principal and interest repayment (same amount paid every year)
+    # Formula for amortized repayment: A = P * r * (1+r)^n / ((1+r)^n - 1)
+    r = 0.04 # Loan interest rate (assumed same as coupon rate concept here for simplicity)
     annuity = face_value * r * (1+r)**T / ((1+r)**T - 1)
     mortgage_cfs = [annuity] * T
 
-    # 시각화
+    # Visualization
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
     
     plot_bond_plank("Treasury Bond (Bullet Repayment)", treasury_cfs, yield_rate, ax1)
     plot_bond_plank("Mortgage Bond (Amortized)", mortgage_cfs, yield_rate, ax2)
     
-    # 결과 출력
+    # Print Results
     t_price, _, t_dur = calculate_bond_metrics(treasury_cfs, yield_rate)
     m_price, _, m_dur = calculate_bond_metrics(mortgage_cfs, yield_rate)
     
@@ -89,12 +86,27 @@ def run_simulation():
     print(f"   - Duration: {m_dur:.4f} years")
     print("-" * 50)
 
-    output_path = r'c:\Users\secha\.gemini\antigravity\scratch\dashboards\SVB\svb_duration_analysis.png'
-    plt.savefig(output_path)
-    print(f"\nGraph saved to: {output_path}")
+    # Save to file
+    output_path = os.path.join(output_dir, 'svb_duration_analysis.png')
+    try:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        plt.savefig(output_path)
+        print(f"\nGraph saved to: {output_path}")
+    except Exception as e:
+        print(f"\nError saving graph to {output_path}: {e}", file=sys.stderr)
 
     plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
-    run_simulation()
+    parser = argparse.ArgumentParser(description="Bond Duration Simulation")
+    parser.add_argument("--T", type=int, default=20, help="Maturity in years (default: 20)")
+    parser.add_argument("--yield_rate", type=float, default=0.05, help="Yield rate (default: 0.05)")
+    parser.add_argument("--face_value", type=float, default=1000000, help="Face value (default: 1,000,000)")
+    parser.add_argument("--coupon_rate", type=float, default=0.04, help="Coupon rate (default: 0.04)")
+    parser.add_argument("--output_dir", type=str, default=".", help="Directory to save the output image (default: current directory)")
+
+    args = parser.parse_args()
+
+    run_simulation(args.T, args.yield_rate, args.face_value, args.coupon_rate, args.output_dir)
