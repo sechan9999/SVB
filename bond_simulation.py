@@ -74,6 +74,25 @@ def run_simulation():
     plot_bond_plank("Treasury Bond (Bullet Repayment)", treasury_cfs, yield_rate, ax1)
     plot_bond_plank("Mortgage Bond (Amortized)", mortgage_cfs, yield_rate, ax2)
     
+    # 결과 출력
+    t_price, _, t_dur = calculate_bond_metrics(treasury_cfs, yield_rate)
+    m_price, _, m_dur = calculate_bond_metrics(mortgage_cfs, yield_rate)
+    
+    print("-" * 50)
+    print(f"1. Treasury Bond (Bullet)")
+    print(f"   - Price:    ${t_price:,.2f}")
+    print(f"   - Duration: {t_dur:.4f} years")
+    
+    print("-" * 50)
+    print(f"2. Mortgage Bond (Amortized)")
+    print(f"   - Price:    ${m_price:,.2f}")
+    print(f"   - Duration: {m_dur:.4f} years")
+    print("-" * 50)
+
+    output_path = r'c:\Users\secha\.gemini\antigravity\scratch\dashboards\SVB\svb_duration_analysis.png'
+    plt.savefig(output_path)
+    print(f"\nGraph saved to: {output_path}")
+
     plt.tight_layout()
     plt.show()
 
